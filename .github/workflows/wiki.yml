@@ -1,0 +1,52 @@
+name: updateWiki
+
+on:
+  push:
+    branches: [master, eliises/add-docs]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Push documentation changes to wiki
+        env:
+          EMAIL: actions@github.com
+          USER_NAME: "Github Actions"
+          REPO_DEST: iotedgedev.wiki
+          REPO_DEST_URL: github.com/Azure/iotedgedev.wiki.git
+          INPUT_GITHUB_TOKEN: ${{ secrets.PUBLISH_SITE_TOKEN }}
+        run: |
+          set -e
+
+          ls -ahl
+          # Save iotedgedev repo folder path
+          REPO_SOURCE=$(pwd)
+          # Exit iotedgedev repo folder
+          cd ..
+          ls -ahl
+          # Clone repositories
+          git clone https://${REPO_DEST_URL}
+          # Update wiki repository with documentation folder contents
+          cd ${REPO_DEST}
+          git rm -rf .
+          git clean -fxd
+          yes | cp -rf ${REPO_SOURCE}/docs/* .
+          git reset
+          # Terminate CI build when no changes detected
+            if git diff-index --quiet HEAD && [ ! -n "$(git status -s)" ]; then 
+              set +e 
+              pkill -9 -P $$ &> /dev/null || true 
+              exit 0
+            else 
+              git config user.email ${EMAIL}
+              git config user.name ${USER_NAME}
+              git status
+              git add .
+              git commit -m "Update documentation | Azure devops build number ${GITHUB_ACTION}"
+              git push "https://${GITHUB_ACTOR}:${INPUT_GITHUB_TOKEN}@${REPO_DEST_URL}" HEAD:master
+            fi
